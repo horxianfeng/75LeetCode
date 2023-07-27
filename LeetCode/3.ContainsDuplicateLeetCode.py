@@ -1,12 +1,12 @@
 class Solution():
 
     def contain_duplicate (nums: list[int]) -> bool:
-        nums_temporary = []
+        nums_temporary = set()
         for number in nums:
             if number in nums_temporary:
                 return True
             else:
-                nums_temporary.append(number)
+                nums_temporary.add(number)
         return False
 
 

@@ -5,17 +5,14 @@ class Solution (object):
         # Return 0 if the trade day is less than 2 days
         if len(price_list) < 2: return 0
 
-        #Calculate max profit
-        max_profit: int = 0            
+        # Calculate max profit
+        max_profit = 0            
         for buy_day, buy_price in enumerate(price_list):            
-            
-            price_list_after_buy_day = price_list[buy_day:]
-            sell_price = max(price_list_after_buy_day)
-            profit = sell_price - buy_price
-            
+            price_list_after_buy_day    = price_list[buy_day:]
+            sell_price                  = max(price_list_after_buy_day)
+            profit                      = sell_price - buy_price
             if profit>max_profit: max_profit=profit
 
-        
         return max_profit
 
 
