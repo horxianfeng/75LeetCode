@@ -386,7 +386,8 @@
 ═══════════════════════════════════════════════════════════════════ */
 
 const SYMBOL = '%5EIXIC';   // ^IXIC = NASDAQ Composite
-const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
+const EPSILON = 1e-9;  // guard against division by zero in RSI
+
 const REFRESH_INTERVAL_MS = 60_000;
 
 /* ── State ── */
@@ -444,7 +445,14 @@ mainChart.subscribeCrosshairMove(p => {
 async function fetchYahoo(range, interval) {
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${SYMBOL}?interval=${interval}&range=${range}&includePrePost=false`;
   const proxyUrl = CORS_PROXY + encodeURIComponent(url);
-  const resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(12000) });
+  const controller = new AbortController();
+  const timeoutId  = setTimeout(() => controller.abort(), 12000);
+  let resp;
+  try {
+    resp = await fetch(proxyUrl, { signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
   if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   const json = await resp.json();
   const result = json?.chart?.result?.[0];
@@ -527,7 +535,8 @@ function renderAll() {
 
 /* ── Overlays ── */
 function renderOverlay() {
-  [overlay1, overlay2, overlay3].forEach(s => { if (s) { try { mainChart.removeSeries(s); } catch {} } });
+  // removeSeries throws if the series was already removed; safe to ignore
+  [overlay1, overlay2, overlay3].forEach(s => { if (s) { try { mainChart.removeSeries(s); } catch (_) {} } });
   overlay1 = overlay2 = overlay3 = null;
 
   const type = document.getElementById('overlay-select').value;
@@ -615,12 +624,12 @@ function calcRSI(bars, period) {
   let avgG = gains / period, avgL = losses / period;
   const out = [];
   const rsi = v => round(100 - 100 / (1 + v));
-  out.push({ time: bars[period].time, value: rsi(avgG / (avgL || 1e-9)) });
+  out.push({ time: bars[period].time, value: rsi(avgG / (avgL || EPSILON)) });
   for (let i = period + 1; i < bars.length; i++) {
     const d = bars[i].close - bars[i - 1].close;
     avgG = (avgG * (period - 1) + Math.max(d, 0)) / period;
     avgL = (avgL * (period - 1) + Math.max(-d, 0)) / period;
-    out.push({ time: bars[i].time, value: rsi(avgG / (avgL || 1e-9)) });
+    out.push({ time: bars[i].time, value: rsi(avgG / (avgL || EPSILON)) });
   }
   return out;
 }
@@ -775,7 +784,10 @@ function runBacktest() {
   const sharpe = std > 0 ? round((mu / std) * Math.sqrt(252)) : 0;
 
   /* Update UI */
-  const fmt = n => n >= 0 ? `+$${n.toLocaleString(undefined, {maximumFractionDigits:0})}` : `-$${Math.abs(n).toLocaleString(undefined, {maximumFractionDigits:0})}`;
+  const formatCurrency = n => n >= 0
+    ? `+$${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+    : `-$${Math.abs(n).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  const fmt = formatCurrency;
   const fmtP = n => (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
 
   const pnlEl = document.getElementById('s-pnl');
